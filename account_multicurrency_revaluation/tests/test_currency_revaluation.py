@@ -68,7 +68,7 @@ class TestCurrencyRevaluation(SavepointCase):
         # Invoice
         invoice = cls.env["account.move"].create(
             {
-                "type": "out_invoice",
+                "move_type": "out_invoice",
                 "invoice_date": "%s-01-16" % year,
                 "currency_id": usd_currency.id,
                 "company_id": cls.company.id,
@@ -79,7 +79,7 @@ class TestCurrencyRevaluation(SavepointCase):
             }
         )
         # Post entries
-        invoice.post()
+        invoice.action_post()
 
         payment_method = ref(
             "account_multicurrency_revaluation." "account_payment_method_manual_in"
@@ -88,21 +88,19 @@ class TestCurrencyRevaluation(SavepointCase):
         # Register partial payment
         payment = cls.env["account.payment"].create(
             {
-                "invoice_ids": [(4, invoice.id, 0)],
+                "reconciled_invoice_ids": [(4, invoice.id, 0)],
                 "amount": 700,
                 "currency_id": usd_currency.id,
-                "payment_date": "%s-02-15" % year,
-                "communication": "Invoice partial payment",
+                "date": "%s-02-15" % year,
+                "ref": "Invoice partial payment",
                 "partner_id": invoice.partner_id.id,
                 "partner_type": "customer",
                 "journal_id": bank_journal_usd.id,
                 "payment_type": "inbound",
                 "payment_method_id": payment_method.id,
-                "payment_difference_handling": "open",
-                "writeoff_account_id": False,
             }
         )
-        payment.post()
+        payment.action_post()
 
         # create invoice in GBP
         gbp_currency = ref("base.GBP")
@@ -122,7 +120,7 @@ class TestCurrencyRevaluation(SavepointCase):
 
         invoice = cls.env["account.move"].create(
             {
-                "type": "out_invoice",
+                "move_type": "out_invoice",
                 "invoice_date": "%s-01-16" % year,
                 "currency_id": gbp_currency.id,
                 "journal_id": sales_journal.id,
@@ -133,26 +131,24 @@ class TestCurrencyRevaluation(SavepointCase):
             }
         )
         # Post entries
-        invoice.post()
+        invoice.action_post()
 
         # Register partial payment
         payment = cls.env["account.payment"].create(
             {
-                "invoice_ids": [(4, invoice.id, 0)],
+                "reconciled_invoice_ids": [(4, invoice.id, 0)],
                 "amount": 700,
                 "currency_id": gbp_currency.id,
-                "payment_date": "%s-02-15" % year,
-                "communication": "Invoice partial payment",
+                "date": "%s-02-15" % year,
+                "ref": "Invoice partial payment",
                 "partner_id": invoice.partner_id.id,
                 "partner_type": "customer",
                 "journal_id": bank_journal_gbp.id,
                 "payment_type": "inbound",
                 "payment_method_id": payment_method.id,
-                "payment_difference_handling": "open",
-                "writeoff_account_id": False,
             }
         )
-        payment.post()
+        payment.action_post()
 
     def test_uk_revaluation(self):
         self.assertEqual(self.company.currency_id, self.env.ref("base.EUR"))
@@ -230,7 +226,7 @@ class TestCurrencyRevaluation(SavepointCase):
         Customer Invoice US      25.00    0.00      100.00
         Customer Invoice US      40.00    0.00      100.00
 
-        Fisrt wizard execution:
+        First wizard execution:
 
             Currency Reval. 1.0  135.00   0.00    0.00
 
@@ -251,11 +247,11 @@ class TestCurrencyRevaluation(SavepointCase):
         invoice1 = self.create_invoice(
             fields.Date.today() - timedelta(days=30), usd_currency, 1.0, 100.00
         )
-        invoice1.post()
+        invoice1.action_post()
         invoice2 = self.create_invoice(
             fields.Date.today() - timedelta(days=15), usd_currency, 1.0, 100.00
         )
-        invoice2.post()
+        invoice2.action_post()
         reval_move_lines = self.env["account.move.line"].search(
             [("account_id", "=", self.receivable_acc.id)]
         )
@@ -326,7 +322,7 @@ class TestCurrencyRevaluation(SavepointCase):
         invoice = self.create_invoice(
             fields.Date.to_date("%s-11-11" % self.year), eur_currency, 5.0, 1000.00
         )
-        invoice.post()
+        invoice.action_post()
         result = self.wizard_execute(fields.Date.to_date("%s-11-16" % self.year))
         self.assertEqual(result.get("name"), "Created revaluation lines")
         reval_move_lines = self.env["account.move.line"].search(
@@ -344,7 +340,7 @@ class TestCurrencyRevaluation(SavepointCase):
                 "currency_id": eur_currency.id,
             }
         )
-        euro_bank.default_debit_account_id.currency_revaluation = True
+        euro_bank.payment_debit_account_id.currency_revaluation = True
         payment_method = self.env.ref(
             "account_multicurrency_revaluation." "account_payment_method_manual_in"
         )
@@ -352,21 +348,19 @@ class TestCurrencyRevaluation(SavepointCase):
         # Register partial payment
         payment = self.env["account.payment"].create(
             {
-                "invoice_ids": [(4, invoice.id, 0)],
+                "reconciled_invoice_ids": [(4, invoice.id, 0)],
                 "amount": 4000,
                 "currency_id": eur_currency.id,
-                "payment_date": "%s-11-15" % self.year,
-                "communication": "Invoice partial payment",
+                "date": "%s-11-15" % self.year,
+                "ref": "Invoice partial payment",
                 "partner_id": invoice.partner_id.id,
                 "partner_type": "customer",
                 "journal_id": euro_bank.id,
                 "payment_type": "inbound",
                 "payment_method_id": payment_method.id,
-                "payment_difference_handling": "open",
-                "writeoff_account_id": False,
             }
         )
-        payment.post()
+        payment.action_post()
 
         result = self.wizard_execute(fields.Date.to_date("%s-11-16" % self.year))
         self.assertEqual(result.get("name"), "Created revaluation lines")
@@ -410,7 +404,7 @@ class TestCurrencyRevaluation(SavepointCase):
         }
         invoice = self.env["account.move"].create(
             {
-                "type": "out_invoice",
+                "move_type": "out_invoice",
                 "invoice_date": date,
                 "currency_id": currency.id,
                 "journal_id": sales_journal.id,
